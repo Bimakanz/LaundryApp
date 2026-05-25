@@ -1,98 +1,280 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS, getSoftShadow } from '../../src/constants/colors';
+import { getMyLaundry } from '../../src/api/transactions';
+import LaundryCard from '../../src/components/LaundryCard';
+import { useToast } from '../../src/context/ToastContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const GradientText = ({ children, style, ...props }) => {
+  const flatStyle = StyleSheet.flatten(style) || {};
+  const {
+    fontSize = 24,
+    fontFamily = 'Poppins-Bold',
+    fontWeight,
+    marginTop,
+    marginBottom,
+    marginVertical,
+    marginHorizontal,
+    marginLeft,
+    marginRight,
+    margin,
+    ...textStyle
+  } = flatStyle;
 
-export default function HomeScreen() {
+  const layoutStyle = {
+    marginTop,
+    marginBottom,
+    marginVertical,
+    marginHorizontal,
+    marginLeft,
+    marginRight,
+    margin,
+  };
+
+  const finalTextStyle = {
+    fontSize,
+    fontFamily,
+    fontWeight,
+    ...textStyle,
+  };
+
+  if (Platform.OS === 'web') {
+    return (
+      <Text
+        style={[
+          finalTextStyle,
+          layoutStyle,
+          {
+            // @ts-ignore
+            backgroundImage: 'linear-gradient(to right, #59C1BD, #2DD4BF)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            display: 'inline-block',
+          },
+        ]}
+        {...props}
+      >
+        {children}
+      </Text>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={[{ flexDirection: 'row' }, layoutStyle]}>
+      <MaskedView
+        style={{ flex: 1, height: fontSize * 1.4 }}
+        maskElement={
+          <Text style={[finalTextStyle, { backgroundColor: 'transparent' }]} {...props}>
+            {children}
+          </Text>
+        }
+      >
+        <LinearGradient
+          colors={['#59C1BD', '#2DD4BF']} // Gradasi Tosca (Teal ke Cyan)
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFillObject}
+        >
+          <Text style={[finalTextStyle, { opacity: 0 }]} {...props}>
+            {children}
+          </Text>
+        </LinearGradient>
+      </MaskedView>
+    </View>
+  );
+};
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+export default function DashboardScreen() {
+  const [user, setUser] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { showToast } = useToast();
+
+  // Reload data (User & Transactions) whenever screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+      fetchData();
+    }, [])
+  );
+
+  const loadUser = async () => {
+    try { const u = await AsyncStorage.getItem('bilas_user'); if (u) setUser(JSON.parse(u)); } catch {}
+  };
+
+  const fetchData = async () => {
+    try {
+      const res = await getMyLaundry();
+      if (res.success) {
+        setTransactions(res.data || []);
+      } else {
+        showToast(res.message || 'Gagal memuat cucian.', 'error');
+        setTransactions([]);
+      }
+    } catch (err) {
+      console.log('Error:', err);
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = useCallback(() => { setRefreshing(true); fetchData(); }, []);
+
+  const totalCucian = transactions.length;
+  const aktif = transactions.filter(t => t.status !== 'diambil').length;
+  const diambil = transactions.filter(t => t.status === 'diambil').length;
+
+  const renderHeader = () => (
+    <View style={styles.headerWrapper}>
+      <View style={[styles.headerOuterWrapper, { paddingTop: insets.top + 20 }]}>
+        <View style={[styles.headerOuter, getSoftShadow(true)]}>
+          <View style={[styles.headerInner, getSoftShadow(false)]}>
+            <View style={styles.headerContent}>
+              <Text style={styles.greeting}>Selamat datang,</Text>
+              <GradientText style={styles.userName}>{user?.name || 'Pelanggan'}</GradientText>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <View style={[styles.softCardOuter, getSoftShadow(true)]}>
+          <View style={[styles.softCardInner, getSoftShadow(false)]}>
+            <View style={styles.softCardContent}>
+              <Text style={styles.summaryValue}>{totalCucian}</Text>
+              <Text style={styles.summaryLabel}>TOTAL</Text>
+            </View>
+          </View>
+        </View>
+        
+        <View style={[styles.softCardOuter, getSoftShadow(true)]}>
+          <View style={[styles.softCardInner, getSoftShadow(false)]}>
+            <View style={styles.softCardContent}>
+              <Text style={styles.summaryValue}>{aktif}</Text>
+              <Text style={styles.summaryLabel}>PROSES</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.softCardOuter, getSoftShadow(true)]}>
+          <View style={[styles.softCardInner, getSoftShadow(false)]}>
+            <View style={styles.softCardContent}>
+              <Text style={styles.summaryValue}>{diambil}</Text>
+              <Text style={styles.summaryLabel}>AMBIL</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+      <Text style={styles.sectionTitle}>Cucian Saya</Text>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header Section */}
+        <View style={[styles.headerWrapper, { paddingTop: insets.top + 20 }]}>
+          <View style={[styles.headerOuter, getSoftShadow(true)]}>
+            <View style={[styles.headerInner, getSoftShadow(false)]}>
+              <View style={styles.headerContent}>
+                <Text style={styles.greeting}>Selamat datang,</Text>
+                <GradientText style={styles.userName}>{user?.name || 'Pelanggan'}</GradientText>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Summary Stats */}
+        <View style={styles.summaryRow}>
+          <View style={[styles.softCardOuter, getSoftShadow(true)]}>
+            <View style={[styles.softCardInner, getSoftShadow(false)]}>
+              <View style={styles.softCardContent}>
+                <Text style={styles.summaryValue}>{totalCucian}</Text>
+                <Text style={styles.summaryLabel}>TOTAL</Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={[styles.softCardOuter, getSoftShadow(true)]}>
+            <View style={[styles.softCardInner, getSoftShadow(false)]}>
+              <View style={styles.softCardContent}>
+                <Text style={styles.summaryValue}>{aktif}</Text>
+                <Text style={styles.summaryLabel}>PROSES</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.softCardOuter, getSoftShadow(true)]}>
+            <View style={[styles.softCardInner, getSoftShadow(false)]}>
+              <View style={styles.softCardContent}>
+                <Text style={styles.summaryValue}>{diambil}</Text>
+                <Text style={styles.summaryLabel}>AMBIL</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Cucian Saya</Text>
+
+        {/* Transactions List */}
+        {transactions.length > 0 ? (
+          transactions.map((item) => (
+            <LaundryCard 
+              key={item.id.toString()} 
+              transaction={item} 
+              onPress={() => router.push(`/detail/${item.id}`)} 
+            />
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Belum ada data cucian.</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  scrollContent: { paddingBottom: 120 },
+  headerWrapper: { paddingHorizontal: 24, marginBottom: 10 },
+  headerOuter: { borderRadius: 30, backgroundColor: COLORS.bg },
+  headerInner: { borderRadius: 30, backgroundColor: COLORS.bg },
+  headerContent: { padding: 24 },
+  greeting: { fontSize: 14, fontFamily: 'Poppins-Medium', color: '#999' },
+  userName: { fontSize: 24, fontFamily: 'Poppins-Bold', color: COLORS.primary, marginTop: 4 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, marginVertical: 20, gap: 12 },
+  softCardOuter: { flex: 1, borderRadius: 24, backgroundColor: COLORS.bg },
+  softCardInner: { borderRadius: 24, backgroundColor: COLORS.bg },
+  softCardContent: { padding: 16, alignItems: 'center', justifyContent: 'center' },
+  summaryValue: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#555' },
+  summaryLabel: { fontSize: 10, fontFamily: 'Poppins-Bold', color: '#AAA', marginTop: 4 },
+  sectionTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#444', marginLeft: 24, marginTop: 10, marginBottom: 5 },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+  emptyText: { fontSize: 14, color: '#999', fontFamily: 'Poppins-Medium' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
