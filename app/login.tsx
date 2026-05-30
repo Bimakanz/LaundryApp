@@ -1,18 +1,44 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../src/context/AuthContext';
-import { COLORS, getSoftShadow } from '../src/constants/colors';
-import { useToast } from '../src/context/ToastContext';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Defs, LinearGradient, Stop, Circle, Path, G, Text as SvgText } from 'react-native-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../src/constants/colors';
+import { useAuth } from '../src/context/AuthContext';
+import { useToast } from '../src/context/ToastContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const { login, isLoading } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const imageHeight = screenWidth * (782 / 1024);
+  const bannerHeight = Math.max(310, imageHeight);
+
+  // Load remembered email on mount
+  useEffect(() => {
+    const loadRememberedEmail = async () => {
+      try {
+        const savedEmail = await AsyncStorage.getItem('remembered_email');
+        const isChecked = await AsyncStorage.getItem('remember_me_checked');
+        if (savedEmail) {
+          setEmail(savedEmail);
+        }
+        if (isChecked === 'true') {
+          setRememberMe(true);
+        }
+      } catch (err) {
+        console.log('Error loading remembered email:', err);
+      }
+    };
+    loadRememberedEmail();
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -21,14 +47,22 @@ export default function LoginScreen() {
     }
 
     try {
-      const res = await login(email, password);
+      const res = await login(email, password) as any;
       if (res.success) {
+        // Save or clear email in AsyncStorage based on Remember Me checkbox
+        if (rememberMe) {
+          await AsyncStorage.setItem('remembered_email', email);
+          await AsyncStorage.setItem('remember_me_checked', 'true');
+        } else {
+          await AsyncStorage.removeItem('remembered_email');
+          await AsyncStorage.setItem('remember_me_checked', 'false');
+        }
         showToast('Selamat datang!');
         router.replace('/(tabs)');
       } else {
         showToast(res.message || 'Login gagal');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login Error:', error);
       let errMsg = 'Terjadi kesalahan koneksi';
       if (error.response && error.response.data && error.response.data.message) {
@@ -41,128 +75,181 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={{ flex: 1, backgroundColor: COLORS.bg }}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Svg width={240} height={80} viewBox="0 0 200 65" style={{ alignSelf: 'center', marginBottom: 10 }}>
-            <Defs>
-              <LinearGradient id="lustra-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#59C1BD" />
-                <Stop offset="100%" stopColor="#59C1BD" />
-              </LinearGradient>
-              <LinearGradient id="glass-glow" x1="0%" y1="0%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor="rgba(255,255,255,0.45)" />
-                <Stop offset="100%" stopColor="rgba(255,255,255,0.15)" />
-              </LinearGradient>
-            </Defs>
-            
-            {/* Glassmorphic Layer (Circles) */}
-            <Circle cx="38" cy="28" r="21" fill="url(#glass-glow)" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" />
-            <Circle cx="54" cy="35" r="15" fill="rgba(89, 193, 189, 0.12)" stroke="rgba(255, 255, 255, 0.3)" strokeWidth="1" />
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, backgroundColor: COLORS.bg }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top Banner (Teal Gradient) */}
+        <LinearGradient
+          colors={['#56C3E2', '#56C3E2']}
+          style={{
+            paddingTop: insets.top + 28,
+            paddingHorizontal: 24,
+            position: 'relative',
+            height: bannerHeight,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Laundry Vector Illustration positioned to span exactly full width */}
+          <Image
+            source={require('../assets/images/laundry_login_vector.png')}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: '100%',
+              height: imageHeight,
+              resizeMode: 'contain'
+            }}
+          />
 
-            {/* Minimalist Fluid Wave Lines */}
-            <Path d="M 18,48 C 50,38 90,56 125,44 C 160,32 175,46 190,40" fill="none" stroke="url(#lustra-grad)" strokeWidth="2.5" strokeLinecap="round" />
-            <Path d="M 28,52 C 55,44 85,58 115,49" fill="none" stroke="rgba(59, 130, 246, 0.25)" strokeWidth="1.5" strokeLinecap="round" />
+          <View style={{ 
+            width: '100%', 
+            alignItems: 'center', 
+            zIndex: 10, 
+            elevation: 10,
+            position: 'relative'
+          }}>
+            <Text style={{ fontSize: 20, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B', textAlign: 'center' }}>
+              Pantau laundry anda di
+            </Text>
+            <Text style={{ fontSize: 36, fontFamily: 'PlusJakartaSans-ExtraBold', color: '#1E293B', letterSpacing: 3, marginTop: 2, textShadowColor: 'rgba(255,255,255,0.3)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3, textAlign: 'center' }}>
+              LUSTRA
+            </Text>
+          </View>
+        </LinearGradient>
 
-            {/* LUSTRA Brand Text */}
-            <SvgText x="35" y="38" fill="url(#lustra-grad)" fontFamily="Poppins-ExtraBold" fontWeight="900" fontSize="28" letterSpacing="3">LUSTRA</SvgText>
+        {/* Bottom Login Form Card */}
+        <View style={{
+          flex: 1,
+          backgroundColor: '#FFF',
+          borderTopLeftRadius: 40,
+          borderTopRightRadius: 40,
+          marginTop: -30,
+          paddingHorizontal: 24,
+          paddingTop: 36,
+          paddingBottom: insets.bottom + 24,
+          ...Platform.select({
+            ios: {
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+            },
+            android: {
+              elevation: 10,
+            },
+            web: {
+              boxShadow: '0 -8px 24px rgba(0,0,0,0.04)'
+            }
+          })
+        }}>
+          <Text style={{ fontSize: 28, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B', textAlign: 'center', marginBottom: 6 }}>
+            Login
+          </Text>
+          <Text style={{ fontSize: 13, fontFamily: 'PlusJakartaSans-Medium', color: '#94A3B8', textAlign: 'center', marginBottom: 28 }}>
+            Pelanggan Setia LUSTRA Laundry
+          </Text>
 
-            {/* 4-Pointed Sparkle (Concave Star) above U */}
-            <G transform="translate(71, 6) scale(0.35)">
-              <Path d="M 20,0 Q 20,20 0,20 Q 20,20 20,40 Q 20,20 40,20 Q 20,20 20,0 Z" fill="url(#lustra-grad)" />
-            </G>
-            {/* Another tiny sparkle above A */}
-            <G transform="translate(139, 4) scale(0.2)" opacity="0.8">
-              <Path d="M 20,0 Q 20,20 0,20 Q 20,20 20,40 Q 20,20 40,20 Q 20,20 20,0 Z" fill="#59C1BD" />
-            </G>
-          </Svg>
-          
-          <Text style={styles.subTitle}>Sistem Pelacakan Cucian Real-Time</Text>
-        </View>
-
-        <View style={[styles.formCardOuter, getSoftShadow(true)]}>
-          <View style={[styles.formCardInner, getSoftShadow(false)]}>
-            <View style={styles.formPadding}>
-              
-              <Text style={styles.label}>Email</Text>
-              <View style={[styles.inputOuter, getSoftShadow(true)]}>
-                <View style={[styles.inputInner, getSoftShadow(false)]}>
-                  <Ionicons name="mail-outline" size={20} color="#94A3B8" style={{marginRight: 10}} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="email@contoh.com"
-                    placeholderTextColor="#CBD5E1"
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                </View>
-              </View>
-
-              <Text style={[styles.label, { marginTop: 24 }]}>Password</Text>
-              <View style={[styles.inputOuter, getSoftShadow(true)]}>
-                <View style={[styles.inputInner, getSoftShadow(false)]}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={{marginRight: 10}} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="password"
-                    placeholderTextColor="#CBD5E1"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity 
-                style={[styles.loginBtnOuter, getSoftShadow(true)]} 
-                onPress={handleLogin}
-                disabled={isLoading}
-              >
-                <View style={[styles.loginBtnInner, getSoftShadow(false)]}>
-                  {isLoading ? (
-                    <ActivityIndicator color={COLORS.primary} />
-                  ) : (
-                    <Text style={styles.loginBtnText}>MASUK SEKARANG</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-
+          {/* Email Input */}
+          <View style={{ marginBottom: 16 }}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#F8FAFC',
+              borderRadius: 30,
+              height: 54,
+              paddingHorizontal: 20,
+              borderWidth: 1.5,
+              borderColor: '#E2E8F0'
+            }}>
+              <Ionicons name="mail-outline" size={20} color="#94A3B8" style={{ marginRight: 12 }} />
+              <TextInput
+                style={{ flex: 1, fontSize: 14, fontFamily: 'PlusJakartaSans-SemiBold', color: '#334155', padding: 0 }}
+                placeholder="Masukkan email anda"
+                placeholderTextColor="#94A3B8"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
             </View>
           </View>
+
+          {/* Password Input */}
+          <View style={{ marginBottom: 16 }}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#F8FAFC',
+              borderRadius: 30,
+              height: 54,
+              paddingHorizontal: 20,
+              borderWidth: 1.5,
+              borderColor: '#E2E8F0'
+            }}>
+              <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={{ marginRight: 12 }} />
+              <TextInput
+                style={{ flex: 1, fontSize: 14, fontFamily: 'PlusJakartaSans-SemiBold', color: '#334155', padding: 0 }}
+                placeholder="Masukkan password anda"
+                placeholderTextColor="#94A3B8"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
+          </View>
+
+          {/* Remember Me Checkbox & Forgot Password */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 4, marginBottom: 28 }}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setRememberMe(!rememberMe)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            >
+              <Ionicons
+                name={rememberMe ? "checkbox" : "square-outline"}
+                size={20}
+                color={rememberMe ? '#56C3E2' : "#94A3B8"}
+              />
+              <Text style={{ fontSize: 13, fontFamily: 'PlusJakartaSans-Medium', color: '#64748B' }}>Remember Me</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => showToast('Hubungi Admin untuk reset password', 'info')}>
+              <Text style={{ fontSize: 13, fontFamily: 'PlusJakartaSans-Bold', color: '#56C3E2' }}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={{
+              height: 54,
+              borderRadius: 27,
+              backgroundColor: '#56C3E2',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#56C3E2',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 6,
+              elevation: 4
+            }}
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={{ color: '#FFF', fontSize: 16, fontFamily: 'PlusJakartaSans-Bold' }}>Login</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  header: { alignItems: 'center', marginBottom: 25 },
-  subTitle: { fontSize: 13, fontFamily: 'Poppins-Medium', color: '#64748B', marginTop: 12 },
-  
-  formCardOuter: { borderRadius: 35, backgroundColor: COLORS.bg },
-  formCardInner: { borderRadius: 35, backgroundColor: COLORS.bg },
-  formPadding: { padding: 30 },
-  
-  label: { fontSize: 12, fontFamily: 'Poppins-Bold', color: '#94A3B8', marginBottom: 12, marginLeft: 5, textTransform: 'uppercase' },
-  
-  inputOuter: { borderRadius: 20, backgroundColor: COLORS.bg },
-  inputInner: { 
-    borderRadius: 20, backgroundColor: COLORS.bg, height: 60, 
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 
-  },
-  input: { flex: 1, fontSize: 15, fontFamily: 'Poppins-SemiBold', color: COLORS.primary },
-  
-  loginBtnOuter: { marginTop: 40, borderRadius: 25, backgroundColor: COLORS.bg },
-  loginBtnInner: { 
-    height: 64, borderRadius: 25, backgroundColor: COLORS.bg, 
-    alignItems: 'center', justifyContent: 'center' 
-  },
-  loginBtnText: { color: COLORS.primary, fontSize: 16, fontFamily: 'Poppins-ExtraBold', letterSpacing: 2 },
-});

@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-const IP_LAPTOP = '172.16.0.57'; 
+const IP_LAPTOP = '192.168.1.6'; // Updated IP address
 const PORT = '8000';
 
 const getBaseUrl = () => {

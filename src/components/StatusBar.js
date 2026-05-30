@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 
@@ -23,19 +23,19 @@ export default function StatusBar({ currentStatus }) {
     : (currentIndex / (STEPS.length - 1)) * 100;
 
   return (
-    <View style={styles.container}>
+    <View style={{ width: '100%', paddingVertical: 5, alignItems: 'center', justifyContent: 'center' }}>
       {/* Arrow Indicator Row floating above the dots */}
-      <View style={styles.indicatorRow}>
+      <View style={{ flexDirection: 'row', width: '100%', height: 16, marginBottom: 2 }}>
         {STEPS.map((step, i) => {
           const stepIndex = STATUS_ORDER.indexOf(step.key);
           const isActive = stepIndex === currentIndex && !isDone;
           
           return (
-            <View key={`arrow-${step.key}`} style={styles.arrowColumn}>
+            <View key={`arrow-${step.key}`} style={{ width: '25%', alignItems: 'center', justifyContent: 'center' }}>
               {isActive ? (
-                <Ionicons name="chevron-down" size={14} color="#59C1BD" style={styles.arrowIcon} />
+                <Ionicons name="chevron-down" size={14} color="#56C3E2" style={{ transform: [{ translateY: 2 }] }} />
               ) : (
-                <View style={styles.arrowPlaceholder} />
+                <View style={{ height: 14 }} />
               )}
             </View>
           );
@@ -43,34 +43,35 @@ export default function StatusBar({ currentStatus }) {
       </View>
 
       {/* Track & Stepper Row */}
-      <View style={styles.trackWrapper}>
+      <View style={{ width: '100%', height: 32, justifyContent: 'center', position: 'relative' }}>
         {/* Grey Background Track (strictly spans from center of first dot to center of last dot) */}
-        <View style={styles.backgroundLine}>
+        <View style={{ position: 'absolute', left: '12.5%', right: '12.5%', top: 14.5, height: 3, backgroundColor: '#CBD5E1', borderRadius: 1.5, overflow: 'hidden', zIndex: 1 }}>
           {/* Active Blue Progress Track */}
-          <View style={[styles.activeLine, { width: `${progressPercent}%` }]} />
+          <View style={[{ height: '100%', backgroundColor: '#56C3E2' }, { width: `${progressPercent}%` }]} />
         </View>
         
         {/* Stepper Dots */}
-        <View style={styles.dotsRow}>
+        <View style={{ flexDirection: 'row', width: '100%', position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', zIndex: 2 }}>
           {STEPS.map((step, i) => {
             const stepIndex = STATUS_ORDER.indexOf(step.key);
-            const isCompleted = isDone || stepIndex < currentIndex;
+            // Modified: Treat current step as completed visually so it shows a checkmark
+            const isCompleted = isDone || stepIndex <= currentIndex;
             const isActive = stepIndex === currentIndex && !isDone;
 
             return (
-              <View key={step.key} style={styles.dotColumn}>
+              <View key={step.key} style={{ width: '25%', alignItems: 'center', justifyContent: 'center' }}>
                 {/* Step Circle */}
                 <View style={[
-                  styles.dotOuter,
-                  isCompleted && styles.dotCompleted,
-                  isActive && styles.dotActive
+                  { width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
+                  isCompleted && { borderColor: '#56C3E2', backgroundColor: '#56C3E2' },
+                  isActive && { borderColor: '#56C3E2', backgroundColor: '#56C3E2' }
                 ]}>
                   {isCompleted ? (
                     <Ionicons name="checkmark-sharp" size={14} color="#FFFFFF" />
                   ) : (
                     <Text style={[
-                      styles.dotNumberText,
-                      isActive && styles.dotActiveNumberText
+                      { fontSize: 12, fontFamily: 'PlusJakartaSans-Bold', color: '#94A3B8' },
+                      isActive && { color: '#FFFFFF' }
                     ]}>
                       {i + 1}
                     </Text>
@@ -83,18 +84,18 @@ export default function StatusBar({ currentStatus }) {
       </View>
 
       {/* Labels Row */}
-      <View style={styles.labelsRow}>
+      <View style={{ flexDirection: 'row', width: '100%', marginTop: 8 }}>
         {STEPS.map((step, i) => {
           const stepIndex = STATUS_ORDER.indexOf(step.key);
           const isCompleted = isDone || stepIndex < currentIndex;
           const isActive = stepIndex === currentIndex && !isDone;
 
           return (
-            <View key={`label-${step.key}`} style={styles.labelColumn}>
+            <View key={`label-${step.key}`} style={{ width: '25%', alignItems: 'center' }}>
               <Text style={[
-                styles.labelText,
-                (isCompleted || isActive) && styles.labelActiveText,
-                isActive && styles.labelFocusedText
+                { fontSize: 10, fontFamily: 'PlusJakartaSans-Bold', color: '#94A3B8', textAlign: 'center' },
+                (isCompleted || isActive) && { color: '#64748B' },
+                isActive && { color: '#56C3E2' }
               ]}>
                 {step.label}
               </Text>
@@ -106,112 +107,3 @@ export default function StatusBar({ currentStatus }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-    paddingVertical: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  indicatorRow: {
-    flexDirection: 'row',
-    width: '100%',
-    height: 16,
-    marginBottom: 2,
-  },
-  arrowColumn: {
-    width: '25%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  arrowIcon: {
-    transform: [{ translateY: 2 }],
-  },
-  arrowPlaceholder: {
-    height: 14,
-  },
-  trackWrapper: {
-    width: '100%',
-    height: 32,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  backgroundLine: {
-    position: 'absolute',
-    left: '12.5%',
-    right: '12.5%',
-    top: 14.5,
-    height: 3,
-    backgroundColor: '#CBD5E1',
-    borderRadius: 1.5,
-    overflow: 'hidden',
-    zIndex: 1,
-  },
-  activeLine: {
-    height: '100%',
-    backgroundColor: '#59C1BD',
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  dotColumn: {
-    width: '25%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotOuter: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotActive: {
-    borderColor: '#59C1BD',
-    backgroundColor: '#59C1BD',
-  },
-  dotCompleted: {
-    borderColor: '#59C1BD',
-    backgroundColor: '#59C1BD',
-  },
-  dotNumberText: {
-    fontSize: 12,
-    fontFamily: 'Poppins-Bold',
-    color: '#94A3B8',
-  },
-  dotActiveNumberText: {
-    color: '#FFFFFF',
-  },
-  labelsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    marginTop: 8,
-  },
-  labelColumn: {
-    width: '25%',
-    alignItems: 'center',
-  },
-  labelText: {
-    fontSize: 10,
-    fontFamily: 'Poppins-Bold',
-    color: '#94A3B8',
-    textAlign: 'center',
-  },
-  labelActiveText: {
-    color: '#64748B',
-  },
-  labelFocusedText: {
-    color: '#59C1BD',
-  },
-});

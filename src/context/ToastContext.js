@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
+import { View, Text, Animated, Platform } from 'react-native';
 import { COLORS, getSoftShadow } from '../constants/colors';
 
 const ToastContext = createContext();
@@ -34,12 +34,22 @@ export const ToastProvider = ({ children }) => {
       {children}
       {toast.visible && (
         <Animated.View style={[
-          styles.toastOuter, 
+          { 
+            position: 'absolute', 
+            top: 60, 
+            left: 24, 
+            right: 24, 
+            borderRadius: 16, 
+            backgroundColor: '#FFFFFF', 
+            borderWidth: 1, 
+            borderColor: '#E2E8F0', 
+            zIndex: 9999 
+          }, 
           getSoftShadow(true),
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
         ]}>
-          <View style={[styles.toastInner, getSoftShadow(false)]}>
-            <Text style={styles.toastText}>{toast.message}</Text>
+          <View style={{ paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: COLORS.text_primary, fontSize: 14, fontFamily: 'PlusJakartaSans-SemiBold', textAlign: 'center' }}>{toast.message}</Text>
           </View>
         </Animated.View>
       )}
@@ -47,28 +57,3 @@ export const ToastProvider = ({ children }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  toastOuter: {
-    position: 'absolute',
-    top: 60, // Di bawah status bar
-    left: 24,
-    right: 24,
-    borderRadius: 20,
-    backgroundColor: COLORS.bg,
-    zIndex: 9999,
-  },
-  toastInner: {
-    borderRadius: 20,
-    backgroundColor: COLORS.bg,
-    paddingVertical: 18,
-    paddingHorizontal: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toastText: {
-    color: COLORS.primary,
-    fontSize: 13,
-    fontFamily: 'Poppins-Bold',
-    textAlign: 'center',
-  }
-});
