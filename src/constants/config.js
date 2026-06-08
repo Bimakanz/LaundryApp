@@ -1,11 +1,11 @@
 import { Platform } from 'react-native';
 
-const IP_LAPTOP = '192.168.1.6'; // Updated IP address
+const IP_LAPTOP = '171.16.0.9'; // Updated IP address
 const PORT = '8000';
 
 const getBaseUrl = () => {
   if (Platform.OS === 'web') {
-    // Gunakan alamat yang sama dengan yang muncul di browser Anda
+    // Gunakan alamat yang sama dengan yang munc  ul di browser Anda
     return `http://localhost:${PORT}`; 
   }
   return `http://${IP_LAPTOP}:${PORT}`;

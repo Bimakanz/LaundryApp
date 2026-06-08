@@ -89,46 +89,37 @@ export default function NotificationsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      {/* Header Section */}
-      <View style={{ 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        paddingHorizontal: 24, 
-        paddingTop: insets.top + 16, 
-        paddingBottom: 16,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
-        ...getSoftShadow(true)
-      }}>
-        <TouchableOpacity 
-          activeOpacity={0.7}
-          style={{ 
-            width: 44, 
-            height: 44, 
-            borderRadius: 12, 
-            backgroundColor: '#FFFFFF', 
-            borderWidth: 1,
-            borderColor: '#E2E8F0',
-            alignItems: 'center', 
-            justifyContent: 'center',
-            ...getSoftShadow(true)
-          }}
-          onPress={() => router.replace('/')}
-        >
-          <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
-        </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B' }}>Notifikasi</Text>
-        <View style={{ width: 44 }} />
-      </View>
-
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderItem}
-        contentContainerStyle={[{ paddingTop: 16 }, { paddingBottom: 64 + insets.bottom + 16 }]}
+        contentContainerStyle={[{ paddingTop: insets.top + 16 }, { paddingBottom: 64 + insets.bottom + 16 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+        ListHeaderComponent={
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            paddingHorizontal: 24, 
+            paddingBottom: 16
+          }}>
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              style={{ 
+                width: 44, 
+                height: 44, 
+                borderRadius: 12, 
+                alignItems: 'center', 
+                justifyContent: 'center',
+              }}
+              onPress={() => router.replace('/')}
+            >
+              <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 18, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B' }}>Notifikasi</Text>
+            <View style={{ width: 44 }} />
+          </View>
+        }
         ListEmptyComponent={
           <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: 100 }}>
             <Ionicons name="notifications-off-outline" size={48} color="#CCC" />

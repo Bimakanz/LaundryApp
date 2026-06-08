@@ -21,6 +21,8 @@ export default function LoginScreen() {
   const imageHeight = screenWidth * (782 / 1024);
   const bannerHeight = Math.max(310, imageHeight);
 
+  const [showPassword, setShowPassword] = useState(false);
+
   // Load remembered email on mount
   useEffect(() => {
     const loadRememberedEmail = async () => {
@@ -96,7 +98,7 @@ export default function LoginScreen() {
         >
           {/* Laundry Vector Illustration positioned to span exactly full width */}
           <Image
-            source={require('../assets/images/laundry_login_vector.png')}
+            source={require('../assets/images/laundry_login_vector.webp')}
             style={{
               position: 'absolute',
               left: 0,
@@ -200,8 +202,19 @@ export default function LoginScreen() {
                 placeholderTextColor="#94A3B8"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
+                secureTextEntry={!showPassword}
               />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={{ padding: 4 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                  size={20}
+                  color="#94A3B8"
+                />
+              </TouchableOpacity>
             </View>
           </View>
 

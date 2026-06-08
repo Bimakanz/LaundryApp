@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTransactionDetail } from '../../src/api/transactions';
-import StatusBar from '../../src/components/StatusBar';
 import { COLORS, getSoftShadow } from '../../src/constants/colors';
 import { API_BASE_URL, API_URL } from '../../src/constants/config';
 import { useToast } from '../../src/context/ToastContext';
@@ -19,17 +19,23 @@ export default function DetailScreen() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [isPhotoExpanded, setIsPhotoExpanded] = useState(false);
-  const [photoRatio, setPhotoRatio] = useState<number | null>(null);
+  const [showGarmentModal, setShowGarmentModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
 
-  useEffect(() => { fetchDetail(); }, [id]);
+  useEffect(() => {
+    fetchDetail();
+  }, [id]);
 
   const fetchDetail = async () => {
     try {
       const res = await getTransactionDetail(id) as any;
       if (res.success) setData(res.data);
-    } catch (err) { console.log(err); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const pickImage = async () => {
@@ -43,6 +49,7 @@ export default function DetailScreen() {
       handleUpload(result.assets[0]);
     }
   };
+
   const handleUpload = async (asset: any) => {
     setUploading(true);
     const formData = new FormData();
@@ -57,7 +64,6 @@ export default function DetailScreen() {
         const cleanExt = ['jpg', 'jpeg', 'png'].includes(fileExt) ? fileExt : 'jpg';
         const mimeType = `image/${cleanExt}`;
 
-        // Gunakan URI asli langsung dari Expo Image Picker tanpa decode, karena native side membutuhkan format aslinya
         formData.append('payment_proof', {
           uri: asset.uri,
           name: asset.fileName || `proof_${id}.${cleanExt}`,
@@ -104,228 +110,582 @@ export default function DetailScreen() {
     }
   };
 
+  const copyToClipboard = async (text: string) => {
+    if (!text) return;
+    await Clipboard.setStringAsync(text);
+    showToast('ID Transaksi berhasil disalin!', 'success');
+  };
+
   const paid = data?.payment_status === 'paid';
   const proofUrl = data?.payment_proof ? `${API_BASE_URL.replace('/api', '')}/storage/${data.payment_proof}` : null;
   const conditionPhotoUrl = data?.condition_photo ? `${API_BASE_URL.replace('/api', '')}/storage/${data.condition_photo}` : null;
 
-  useEffect(() => {
-    if (conditionPhotoUrl) {
-      Image.getSize(conditionPhotoUrl, (width, height) => {
-        if (height > 0) setPhotoRatio(width / height);
-      }, () => {
-        setPhotoRatio(1);
+  // Format date and time from raw created_at string
+  const formatDateTime = (rawDateStr: string) => {
+    if (!rawDateStr) return { date: '-', time: '-' };
+    try {
+      const cleanStr = rawDateStr.replace(' ', 'T');
+      const d = new Date(cleanStr);
+      const date = d.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
       });
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const time = `${hours}:${minutes}`;
+      return { date, time };
+    } catch {
+      return { date: '-', time: '-' };
     }
-  }, [conditionPhotoUrl]);
+  };
+
+  const { date, time } = formatDateTime(data?.created_at);
+
+  // Status mapping to label, color, and icons
+  const getStatusDetail = (status: string) => {
+    switch (status) {
+      case 'diambil':
+        return { label: 'Selesai', color: '#16A34A', bg: '#D1FAE5', icon: 'checkmark-circle' };
+      case 'siap diambil':
+        return { label: 'Siap Diambil', color: '#059669', bg: '#D1FAE5', icon: 'cube-outline' };
+      case 'disetrika':
+        return { label: 'Sedang Disetrika', color: '#7C3AED', bg: '#F3E8FF', icon: 'shirt-outline' };
+      case 'dicuci':
+        return { label: 'Sedang Dicuci', color: '#2563EB', bg: '#DBEAFE', icon: 'water-outline' };
+      case 'antrian':
+      default:
+        return { label: 'Dalam Antrian', color: '#D97706', bg: '#FEF3C7', icon: 'time-outline' };
+    }
+  };
+
+  const statusDetail = getStatusDetail(data?.status || 'antrian');
 
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
       </View>
     );
   }
 
-
-
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      {/* Header */}
-      <View style={{ 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        paddingHorizontal: 24, 
-        paddingTop: insets.top + 16, 
-        paddingBottom: 16,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
-        ...getSoftShadow(true)
-      }}>
-        <TouchableOpacity 
-          style={{ 
-            width: 44, 
-            height: 44, 
-            borderRadius: 12, 
-            backgroundColor: '#FFFFFF',
-            borderWidth: 1,
-            borderColor: '#E2E8F0',
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header (Non-fixed, transparent) */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 16
+        }}>
+          <TouchableOpacity
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              backgroundColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
+          </TouchableOpacity>
+          <Text style={{ fontSize: 18, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B' }}>Detail Transaksi</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        {/* GoPay Style Receipt Card */}
+        <View style={{
+          borderRadius: 24,
+          backgroundColor: '#FFFFFF',
+          borderWidth: 1,
+          borderColor: '#E2E8F0',
+          padding: 24,
+          alignItems: 'center',
+          ...getSoftShadow(true),
+          position: 'relative'
+        }}>
+          {/* Top Circular Badge */}
+          <View style={{
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: '#E0F2FE',
             alignItems: 'center',
             justifyContent: 'center',
-            ...getSoftShadow(true)
-          }} 
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
-        </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B' }}>Detail Cucian</Text>
-        <View style={{ width: 44 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
-        {/* Main Info Card */}
-        <View style={{ 
-          marginTop: 24, 
-          borderRadius: 16, 
-          backgroundColor: '#FFFFFF',
-          borderWidth: 1,
-          borderColor: '#E2E8F0',
-          padding: 24,
-          ...getSoftShadow(true)
-        }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 22, fontFamily: 'PlusJakartaSans-Bold', color: COLORS.primary }}>{data?.invoice_code}</Text>
-            <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: paid ? '#D1FAE5' : '#FEF3C7' }}>
-              <Text style={{ fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', color: paid ? '#065F46' : '#92400E' }}>
-                {paid ? 'LUNAS' : 'PENDING'}
-              </Text>
-            </View>
-          </View>
-          <View style={{ height: 1, backgroundColor: '#E2E8F0', marginVertical: 20 }} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
-            <Ionicons name="calendar-outline" size={18} color="#94A3B8" />
-            <View>
-              <Text style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'PlusJakartaSans-Bold', textTransform: 'uppercase' }}>Tanggal Masuk</Text>
-              <Text style={{ fontSize: 14, color: '#334155', fontFamily: 'PlusJakartaSans-SemiBold', marginTop: 2 }}>
-                {data?.created_at ? new Date(data.created_at.replace(' ', 'T')).toLocaleDateString('id-ID', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric'
-                }) : '-'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Tracking Card */}
-        <View style={{ 
-          marginTop: 24, 
-          borderRadius: 16, 
-          backgroundColor: '#FFFFFF',
-          borderWidth: 1,
-          borderColor: '#E2E8F0',
-          padding: 24,
-          ...getSoftShadow(true)
-        }}>
-          <Text style={{ fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', color: '#94A3B8', letterSpacing: 1, marginBottom: 20 }}>STATUS PELACAKAN</Text>
-          <StatusBar currentStatus={data?.status} />
-          <View style={{ marginTop: 20, alignItems: 'center', padding: 15, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16 }}>
-            <Text style={{ fontSize: 18, fontFamily: 'PlusJakartaSans-ExtraBold', color: COLORS.primary }}>{(data?.status || 'antrian').toUpperCase()}</Text>
-            <Text style={{ fontSize: 12, color: '#64748B', fontFamily: 'PlusJakartaSans-Medium', marginTop: 4 }}>
-              {data?.status === 'siap diambil' 
-                ? 'Pesanan Anda sudah siap diambil' 
-                : data?.status === 'diambil' 
-                  ? 'Pesanan Anda telah diambil' 
-                  : 'Pesanan Anda sedang diproses'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Payment Proof Card - Only show if not paid */}
-        {!paid && (
-          <View style={{ 
-            marginTop: 24, 
-            borderRadius: 16, 
-            backgroundColor: '#FFFFFF',
-            borderWidth: 1,
-            borderColor: '#E2E8F0',
-            padding: 24,
-            ...getSoftShadow(true)
+            marginBottom: 16,
+            borderWidth: 4,
+            borderColor: '#F0F9FF'
           }}>
-            <Text style={{ fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', color: '#94A3B8', letterSpacing: 1, marginBottom: 20 }}>BUKTI TRANSFER</Text>
-            {proofUrl ? (
-              <View style={{ alignItems: 'center' }}>
-                <Image source={{ uri: proofUrl }} style={{ width: '100%', height: 200, borderRadius: 16, backgroundColor: '#F1F5F9' }} resizeMode="cover" />
-                <TouchableOpacity style={{ marginTop: 12, paddingVertical: 8, paddingHorizontal: 16, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10 }} onPress={pickImage} disabled={uploading}>
-                  <Text style={{ fontSize: 12, fontFamily: 'PlusJakartaSans-Bold', color: '#64748B' }}>{uploading ? 'Mengunggah...' : 'Ganti Gambar'}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={{ height: 150, borderRadius: 16, borderStyle: 'dashed', borderWidth: 2, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' }} onPress={pickImage} disabled={uploading}>
-                {uploading ? (
-                  <ActivityIndicator color={COLORS.primary} />
-                ) : (
-                  <>
-                    <Ionicons name="cloud-upload-outline" size={40} color={COLORS.primary} />
-                    <Text style={{ marginTop: 8, fontSize: 13, fontFamily: 'PlusJakartaSans-Medium', color: '#94A3B8' }}>Ketuk untuk Unggah Bukti</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+            <Ionicons name="receipt" size={28} color="#0284C7" />
           </View>
-        )}
 
-        {/* Foto Kondisi Baju Card */}
-        <View style={{ 
-          marginTop: 24, 
-          borderRadius: 16, 
-          backgroundColor: '#FFFFFF',
-          borderWidth: 1,
-          borderColor: '#E2E8F0',
-          padding: 24,
-          ...getSoftShadow(true)
-        }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', color: '#94A3B8', letterSpacing: 1 }}>FOTO KONDISI BAJU</Text>
-            {conditionPhotoUrl && (
-              <TouchableOpacity onPress={() => setIsPhotoExpanded(!isPhotoExpanded)} style={{ padding: 4 }}>
-                <Ionicons name={isPhotoExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
-          {conditionPhotoUrl ? (
-            <TouchableOpacity activeOpacity={0.9} onPress={() => setIsPhotoExpanded(!isPhotoExpanded)} style={{ alignItems: 'center' }}>
-              <Image 
-                source={{ uri: conditionPhotoUrl }} 
-                style={[
-                  { width: '100%', backgroundColor: '#F1F5F9', borderRadius: 16 },
-                  isPhotoExpanded && photoRatio ? { aspectRatio: photoRatio } : { height: 140 }
-                ]} 
-                resizeMode={isPhotoExpanded ? "contain" : "cover"} 
-              />
-              <View style={{ flexDirection: 'row', gap: 8, backgroundColor: '#EFF6FF', borderColor: '#DBEAFE', borderWidth: 1, padding: 12, borderRadius: 12, marginTop: 15 }}>
-                <Ionicons name="information-circle-outline" size={16} color="#56C3E2" style={{ marginTop: 2 }} />
-                <Text style={{ flex: 1, fontSize: 11, color: '#1D4ED8', fontFamily: 'PlusJakartaSans-Medium', lineHeight: 16 }}>
-                  Foto di atas diambil oleh admin untuk memverifikasi kondisi pakaian Anda saat masuk ke LUSTRA.
+          {/* Amount (Highlight Green) */}
+          <Text style={{
+            fontSize: 26,
+            fontFamily: 'PlusJakartaSans-ExtraBold',
+            color: '#16A34A',
+            textAlign: 'center'
+          }}>
+            Rp {Number(data?.total_price || 0).toLocaleString('id-ID')}
+          </Text>
+
+          {/* Subtitle */}
+          <Text style={{
+            fontSize: 14,
+            fontFamily: 'PlusJakartaSans-Bold',
+            color: '#64748B',
+            marginTop: 4,
+            textAlign: 'center'
+          }}>
+            {data?.service?.service_name || 'Layanan Laundry'}
+          </Text>
+
+          {/* Dashed Line */}
+          <View style={{
+            width: '100%',
+            height: 1,
+            borderStyle: 'dashed',
+            borderWidth: 1,
+            borderColor: '#CBD5E1',
+            marginVertical: 24
+          }} />
+
+          {/* Transaction details block */}
+          <View style={{ width: '100%' }}>
+            <Text style={{
+              fontSize: 15,
+              fontFamily: 'PlusJakartaSans-Bold',
+              color: '#1E293B',
+              marginBottom: 16
+            }}>
+              Rincian transaksi
+            </Text>
+
+            {/* Row: Status */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Status</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.detailValue, { color: statusDetail.color, fontFamily: 'PlusJakartaSans-Bold' }]}>
+                  {statusDetail.label}
+                </Text>
+                <Ionicons name={statusDetail.icon as any} size={16} color={statusDetail.color} />
+              </View>
+            </View>
+
+            {/* Row: Status Pembayaran */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Pembayaran</Text>
+              <View style={{
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 8,
+                backgroundColor: paid ? '#D1FAE5' : '#FEF3C7'
+              }}>
+                <Text style={{
+                  fontSize: 11,
+                  fontFamily: 'PlusJakartaSans-Bold',
+                  color: paid ? '#065F46' : '#92400E'
+                }}>
+                  {paid ? 'Lunas' : 'Belum Lunas'}
                 </Text>
               </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ paddingVertical: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', borderRadius: 16, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E2E8F0' }}>
-              <Ionicons name="image-outline" size={48} color="#CBD5E1" />
-              <Text style={{ fontSize: 12, color: '#94A3B8', fontFamily: 'PlusJakartaSans-Bold', marginTop: 10 }}>Belum ada foto pakaian dari admin</Text>
             </View>
-          )}
+
+            {/* Row: Waktu */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Waktu</Text>
+              <Text style={styles.detailValue}>{time}</Text>
+            </View>
+
+            {/* Row: Tanggal */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Tanggal</Text>
+              <Text style={styles.detailValue}>{date}</Text>
+            </View>
+
+            {/* Row: ID Transaksi */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>ID Transaksi</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => copyToClipboard(data?.invoice_code)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              >
+                <Text style={styles.detailValue}>{data?.invoice_code || '-'}</Text>
+                <Ionicons name="copy-outline" size={14} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Row: Satuan */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Satuan</Text>
+              <Text style={styles.detailValue}>
+                {Number(data?.quantity || 0)} {data?.service?.unit || 'kg'}
+              </Text>
+            </View>
+
+            {/* Row: Harga */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Harga</Text>
+              <Text style={styles.detailValue}>
+                Rp {Number(data?.service?.price || 0).toLocaleString('id-ID')} / {data?.service?.unit || 'kg'}
+              </Text>
+            </View>
+
+            {/* Dashed Line */}
+            <View style={{
+              width: '100%',
+              height: 1,
+              borderStyle: 'dashed',
+              borderWidth: 1,
+              borderColor: '#E2E8F0',
+              marginVertical: 16
+            }} />
+
+            {/* Row: Jumlah */}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Jumlah</Text>
+              <Text style={styles.detailValue}>Rp {Number(data?.total_price || 0).toLocaleString('id-ID')}</Text>
+            </View>
+
+            {/* Row: Total */}
+            <View style={[styles.detailRow, { marginTop: 4 }]}>
+              <Text style={{ fontSize: 15, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B' }}>Total</Text>
+              <Text style={{ fontSize: 16, fontFamily: 'PlusJakartaSans-ExtraBold', color: '#1E293B' }}>
+                Rp {Number(data?.total_price || 0).toLocaleString('id-ID')}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Items Card */}
-        <View style={{ 
-          marginTop: 24, 
-          borderRadius: 16, 
-          backgroundColor: '#FFFFFF',
-          borderWidth: 1,
-          borderColor: '#E2E8F0',
-          padding: 24,
-          ...getSoftShadow(true)
-        }}>
-          <Text style={{ fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', color: '#94A3B8', letterSpacing: 1, marginBottom: 20 }}>RINCIAN LAYANAN</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 0 }}>
-             <View style={{ flex: 1 }}>
-               <Text style={{ fontSize: 16, fontFamily: 'PlusJakartaSans-Bold', color: '#334155' }}>{data?.service?.service_name}</Text>
-               <Text style={{ fontSize: 13, color: '#64748B', fontFamily: 'PlusJakartaSans-Medium', marginTop: 2 }}>
-                 {Number(data?.quantity || 0)} {data?.service?.unit} x Rp {Number(data?.service?.price || 0).toLocaleString('id-ID')}
-               </Text>
-             </View>
-             <Text style={{ fontSize: 16, fontFamily: 'PlusJakartaSans-Bold', color: '#334155' }}>Rp {Number(data?.total_price || 0).toLocaleString('id-ID')}</Text>
-          </View>
-          <View style={{ marginTop: 20, paddingTop: 18, borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: '#E2E8F0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, fontFamily: 'PlusJakartaSans-Bold', color: '#334155' }}>Total Bayar</Text>
-            <Text style={{ fontSize: 20, fontFamily: 'PlusJakartaSans-ExtraBold', color: COLORS.primary }}>Rp {Number(data?.total_price || 0).toLocaleString('id-ID')}</Text>
-          </View>
+        {/* Garment Photo & Payment Buttons Container */}
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+          {/* Button: Foto Kondisi Baju */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setShowGarmentModal(true)}
+            style={[styles.actionButton, { flex: 1 }]}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: '#EFF6FF' }]}>
+              <Ionicons name="shirt-outline" size={20} color="#3B82F6" />
+            </View>
+            <Text style={styles.actionButtonText}>Foto Kondisi</Text>
+          </TouchableOpacity>
+
+          {/* Button: Bukti Pembayaran */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setShowPaymentModal(true)}
+            style={[styles.actionButton, { flex: 1 }]}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="card-outline" size={20} color="#22C55E" />
+            </View>
+            <Text style={styles.actionButtonText}>Bukti Bayar</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal: Foto Kondisi Baju */}
+      <Modal
+        visible={showGarmentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowGarmentModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Foto Kondisi Baju</Text>
+              <TouchableOpacity onPress={() => setShowGarmentModal(false)}>
+                <Ionicons name="close" size={24} color="#1E293B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView contentContainerStyle={{ padding: 24, alignItems: 'center' }}>
+              {conditionPhotoUrl ? (
+                <>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => setFullScreenImage(conditionPhotoUrl)}
+                    style={{ width: '100%' }}
+                  >
+                    <Image
+                      source={{ uri: conditionPhotoUrl }}
+                      style={{ width: '100%', height: 260, borderRadius: 16, backgroundColor: '#F1F5F9' }}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 8, backgroundColor: '#EFF6FF', borderColor: '#DBEAFE', borderWidth: 1, padding: 12, borderRadius: 12, marginTop: 16 }}>
+                    <Ionicons name="information-circle-outline" size={18} color="#3B82F6" style={{ marginTop: 2 }} />
+                    <Text style={{ flex: 1, fontSize: 12, color: '#1E40AF', fontFamily: 'PlusJakartaSans-Medium', lineHeight: 18 }}>
+                      Foto di atas diambil oleh admin untuk memverifikasi kondisi pakaian Anda saat masuk ke LUSTRA.
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.emptyModalView}>
+                  <Ionicons name="image-outline" size={48} color="#CBD5E1" />
+                  <Text style={styles.emptyModalText}>Belum ada foto pakaian dari admin</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Bukti Pembayaran */}
+      <Modal
+        visible={showPaymentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPaymentModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Bukti Pembayaran</Text>
+              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+                <Ionicons name="close" size={24} color="#1E293B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView contentContainerStyle={{ padding: 24 }}>
+              {proofUrl ? (
+                <View style={{ alignItems: 'center' }}>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => setFullScreenImage(proofUrl)}
+                    style={{ width: '100%' }}
+                  >
+                    <Image
+                      source={{ uri: proofUrl }}
+                      style={{ width: '100%', height: 260, borderRadius: 16, backgroundColor: '#F1F5F9' }}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                  {!paid && (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={[styles.uploadButton, { marginTop: 16 }]}
+                      onPress={pickImage}
+                      disabled={uploading}
+                    >
+                      {uploading ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="cloud-upload-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                          <Text style={styles.uploadButtonText}>Ganti Bukti</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <View style={{ alignItems: 'center' }}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    style={styles.dashedUploadBox}
+                    onPress={pickImage}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <ActivityIndicator color={COLORS.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="cloud-upload-outline" size={40} color={COLORS.primary} />
+                        <Text style={{ marginTop: 8, fontSize: 13, fontFamily: 'PlusJakartaSans-Bold', color: COLORS.primary }}>
+                          Unggah Bukti Transfer
+                        </Text>
+                        <Text style={{ marginTop: 4, fontSize: 11, fontFamily: 'PlusJakartaSans-Medium', color: '#94A3B8', textAlign: 'center' }}>
+                          Ketuk untuk mengambil dari galeri
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Full Screen Image Viewer Modal */}
+      <Modal
+        visible={!!fullScreenImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullScreenImage(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.fullScreenOverlay}
+          onPress={() => setFullScreenImage(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.fullScreenCloseButton}
+            onPress={() => setFullScreenImage(null)}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          {fullScreenImage && (
+            <Image
+              source={{ uri: fullScreenImage }}
+              style={styles.fullScreenImage}
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
 
+const styles = StyleSheet.create({
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 6
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Medium',
+    color: '#64748B'
+  },
+  detailValue: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    color: '#1E293B'
+  },
+  actionButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...getSoftShadow(true)
+  },
+  actionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#1E293B'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end'
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    maxHeight: '85%',
+    ...getSoftShadow(true)
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#1E293B'
+  },
+  emptyModalView: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%'
+  },
+  emptyModalText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontFamily: 'PlusJakartaSans-Bold',
+    marginTop: 12,
+    textAlign: 'center'
+  },
+  dashedUploadBox: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 20
+  },
+  uploadButton: {
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    width: '100%',
+    ...getSoftShadow(true)
+  },
+  uploadButtonText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#FFFFFF'
+  },
+  fullScreenOverlay: {
+    flex: 1,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%'
+  },
+  fullScreenCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 24,
+    zIndex: 9999,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)'
+  }
+});

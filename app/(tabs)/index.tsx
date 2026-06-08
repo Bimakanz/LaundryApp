@@ -237,9 +237,9 @@ export default function DashboardScreen() {
                 colors={['#56C3E2', '#7DD3FC']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Text style={{ fontSize: 16, fontFamily: 'PlusJakartaSans-Bold', color: '#FFFFFF' }}>
+                <Text style={{ fontSize: 13, fontFamily: 'PlusJakartaSans-Bold', color: '#FFFFFF' }}>
                   {user?.name ? user.name.split(' ').map((w: any) => w[0]).join('').toUpperCase().slice(0, 2) : 'P'}
                 </Text>
               </LinearGradient>

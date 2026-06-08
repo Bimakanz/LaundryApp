@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Platform, TextInput } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { changePassword, getProfile, logout, updateProfile } from '../../src/api/auth';
 import { COLORS, getSoftShadow } from '../../src/constants/colors';
-import { getProfile, logout, updateProfile, changePassword } from '../../src/api/auth';
 import { useAuth } from '../../src/context/AuthContext';
 import { useToast } from '../../src/context/ToastContext';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
@@ -138,19 +138,14 @@ export default function ProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
-        {/* Header Section */}
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }}>
+        {/* Header Section (Non-fixed, transparent) */}
         <View style={{ 
           flexDirection: 'row', 
           alignItems: 'center', 
           justifyContent: 'space-between', 
           paddingHorizontal: 24, 
-          paddingTop: insets.top + 16, 
           paddingBottom: 16,
-          backgroundColor: '#FFFFFF',
-          borderBottomWidth: 1,
-          borderBottomColor: '#E2E8F0',
-          ...getSoftShadow(true)
         }}>
           <TouchableOpacity 
             activeOpacity={0.7}
@@ -158,12 +153,8 @@ export default function ProfileScreen() {
               width: 44, 
               height: 44, 
               borderRadius: 12, 
-              backgroundColor: '#FFFFFF', 
-              borderWidth: 1,
-              borderColor: '#E2E8F0',
               alignItems: 'center', 
-              justifyContent: 'center',
-              ...getSoftShadow(true)
+              justifyContent: 'center'
             }}
             onPress={() => router.replace('/')}
           >
@@ -182,6 +173,7 @@ export default function ProfileScreen() {
             borderColor: '#E2E8F0',
             ...getSoftShadow(true)
           }}>
+            {/* User Profile Badge */}
             <View style={{ padding: 32, alignItems: 'center' }}>
               <View style={{ 
                 width: 80, 
@@ -197,18 +189,11 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 22, fontFamily: 'PlusJakartaSans-Bold', color: '#1E293B' }}>{user?.name || '-'}</Text>
               <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 4, fontFamily: 'PlusJakartaSans-Medium' }}>{user?.email || '-'}</Text>
             </View>
-          </View>
-        </View>
 
-        {/* Info Section */}
-        <View style={{ paddingHorizontal: 24, marginTop: 8 }}>
-          <View style={{ 
-            borderRadius: 16, 
-            backgroundColor: '#FFFFFF',
-            borderWidth: 1,
-            borderColor: '#E2E8F0',
-            ...getSoftShadow(true)
-          }}>
+            {/* Separator Line */}
+            <View style={{ height: 1, backgroundColor: '#E2E8F0', marginHorizontal: 24 }} />
+
+            {/* Info Section details */}
             <View style={{ padding: 24 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                 <Ionicons name="call-outline" size={20} color="#94A3B8" style={{ marginTop: isEditing ? 8 : 0 }} />
